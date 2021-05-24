@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+ <head>
+     <meta charset="utf-8"> 
+     <title>My first three.js app</title> 
+     <style> body { margin: 0; } </style> 
+ </head> 
+ <body> 
+    <div id="info"></div>
+    <script type='module'>
+        import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r127/build/three.module.js';
+        import { OrbitControls } from 'https://threejsfundamentals.org/threejs/resources/threejs/r127/examples/jsm/controls/OrbitControls.js';
+        
+
+ // ********** setting the scene **********
+const scene = new THREE.Scene();
+
+// ********** setting the camera **********
+let aspect = window.innerWidth / window.innerHeight;
+const camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 2000); // camera field of view in degrees, aspect ratio, near, far clipping plane distance
+camera.position.set(0, -500, 10);
+camera.lookAt(0,0,0);
+
+// ********** setting the renderer **********
+const renderer = new THREE.WebGLRenderer({ antialias : true }); 
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+
+// ********** setting the light **********
+const directionalLight = new THREE.DirectionalLight({color : 0xFFFFFF, intensity: 1});
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.width = 1024;
+directionalLight.shadow.mapSize.height = 1024;
+directionalLight.position.set(0, -0.01, 0); 
+directionalLight.lookAt(0,0,0);
+scene.add(directionalLight);
+const directionalLight2 = new THREE.DirectionalLight({color : 0xFFFFFF, intensity: 1});
+directionalLight2.castShadow = true;
+directionalLight2.shadow.mapSize.width = 1024;
+directionalLight2.shadow.mapSize.height = 1024;
+directionalLight2.position.set(0, 0.01, 0); 
+directionalLight2.lookAt(0,0,0);
+scene.add(directionalLight2);
+
+// ********** load the object **********
+const SIZE = 1000;
+const num_of_sphere = 500;
+const ball_size = 2;
+const sphere = [];
+const speedx = [];
+const speedy = [];
+const speedz = [];
+const bump = [];
+
+for (let i = 0 ; i<num_of_sphere ; i++) {
+    
+    speedx[i] = (Math.random()-0.5)*3;
+    speedy[i] = (Math.random()-0.5)*3;
+    speedz[i] = (Math.random()-0.5)*3;
+    bump[i] = 0;
+
+    let geometry = new THREE.SphereGeometry( ball_size, 32, 32);
+    let material = new THREE.MeshStandardMaterial( {color:  0xffffff} );
+    sphere[i] = new THREE.Mesh( geometry, material );
+    sphere[i].castShadow = true;
+    sphere[i].receiveShadow = true;
+    sphere[i].position.set((Math.random()-0.5),SIZE*(Math.random()-0.5),(Math.random()-0.5));
+    scene.add(sphere[i]);
+}
+
+function isHit(obj1, obj2, size1, size2) {
+    let x1 = obj1.position.x;
+    let x2 = obj2.position.x;
+    let y1 = obj1.position.y;
+    let y2 = obj2.position.y;
+    let z1 = obj1.position.z;
+    let z2 = obj2.position.z;
+    let s1 = size1;
+    let s2 = size2;
+    if ((Math.abs(x2-x1) < s1+s2)  && (Math.abs(y2-y1) < s1+s2) && (Math.abs(z2-z1) < s1+s2)) {
+    //console.log("-----crash!");
+    return true;
+    }
+    else return false;
+}
+
+// ********** event **********
+
+window.addEventListener( 'mousemove', onMouseMove, false );
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function onMouseMove( event ) {
+
+mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+}
+
+// ********** draw function **********
+let frame = 0;
+function draw() {
+    frame += 1;
+    for (let i = 0 ; i<num_of_sphere ; i++) {
+        for (let another = 0; another<num_of_sphere; another++) {
+            if ((i != another) && isHit(sphere[i], sphere[another], ball_size, ball_size) && frame>150) { //if two ball crash
+                speedx[i] = -speedx[i]*0.5; //change the direction
+                speedy[i] = -speedy[i]*0.5;
+                speedz[i] = -speedz[i]*0.5;
+                speedx[another] = -speedx[another]*0.5; //slow down
+                speedy[another] = -speedy[another]*0.5;
+                speedz[another] = -speedz[another]*0.5;
+                //sphere[i].material.color.set( 0xff0000 ); //turn red           
+            }
+        }
+
+    // move
+    sphere[i].position.x += speedx[i];
+    sphere[i].position.y += speedy[i];
+    sphere[i].position.z += speedz[i];
+   
+    let vector_a = new THREE.Vector3(sphere[i].position.x, sphere[i].position.y, sphere[i].position.z);
+    let vector_b = new THREE.Vector3();
+    let dist = vector_a.distanceTo(vector_b);
+    if (dist>SIZE) { //if hit the virtual wall
+        speedx[i] = (-speedx[i]+Math.random()-0.5)*0.8; 
+        speedy[i] = (-speedy[i]+Math.random()-0.5)*0.8; 
+        speedz[i] = (-speedz[i]+Math.random()-0.5)*0.8;
+        bump[i] += 1;
+        if (bump[i] > 1) {
+            speedx[i] *= 0.5; 
+            speedy[i] *= 0.5; 
+            speedz[i] *= 0.5;
+        }
+    }
+
+    if ( frame>300 ) {
+        let energy = (Math.abs(speedx[i])+Math.abs(speedy[i])+Math.abs(speedz[i]));
+        if (energy<0.04) sphere[i].material.color.set( 0xff0000 );
+        let ran = Math.random()*100;
+        //console.log(ran);
+        if (ran>99.8) {
+            console.log("slow");
+            speedx[i] *= Math.random(); 
+            speedy[i] *= Math.random(); 
+            speedz[i] *= Math.random();
+        }
+    }
+}
+
+    raycaster.setFromCamera( mouse, camera );
+    const intersects = raycaster.intersectObjects( scene.children ); //push the sphere
+    for ( let i = 0; i < intersects.length; i ++ ) {
+        intersects[i].object.material.color.set( 0xffffff ); //turn white
+    
+        let a_x = intersects[i].object.position.x;
+        let a_y = intersects[i].object.position.y;
+        let a_z = intersects[i].object.position.z;
+        
+        for (let p = 0; p<num_of_sphere; p++) {
+            let b_x = sphere[p].position.x;
+            let b_y = sphere[p].position.y;
+            let b_z = sphere[p].position.z;
+
+            if (Math.abs(a_x - b_x)<2 && Math.abs(a_y - b_y)<2 && Math.abs(a_z - b_z)<2) {
+                speedx[p] *= 1.5; 
+                speedy[p] *= 1.5; 
+                speedz[p] *= 1.5;
+            }
+        }
+    }
+
+    renderer.render( scene, camera );
+}
+
+function animate() {
+    requestAnimationFrame( animate );
+    draw();
+}
+
+animate();
+
+
+ </script>
+ </body>
+ </html>
